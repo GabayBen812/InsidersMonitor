@@ -30,7 +30,7 @@ def process_trade(trade):
     url = f"https://polymarket.com/event/{title_to_slug(title)}/{slug}"
 
     msg = (
-        f"📢 **Nbest55 Activity** 📢\n\n"
+        f"📢 **Activity** 📢\n\n"
         f"🎯 {title}\n"
         f"👉 {side} {outcome}\n"
         f"💰 {size} shares @ {price*100:.2f}% (~{cost:.2f} USDC)\n"
