@@ -37,6 +37,8 @@ Create a `.env` file (or set environment variables):
 DISCORD_BOT_TOKEN=your_bot_token_here
 ```
 
+**⚠️ IMPORTANT:** Never commit your `.env` file! It contains sensitive tokens. The `.env` file is already in `.gitignore`.
+
 ### 4. Configuration
 
 Edit `strikes.py` to configure your insiders:
