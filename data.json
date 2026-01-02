@@ -1,0 +1,113 @@
+{
+  "insiders": {
+    "Tyrone - DigitalPost (ALT)": {
+      "serial_id": 1,
+      "bio": {
+        "trading_style": "Not set",
+        "hit_rate": "Not set",
+        "main_markets": "Not set",
+        "notes": "No additional notes"
+      }
+    },
+    "Tyrone - JubileeSun (ALT)": {
+      "serial_id": 2,
+      "bio": {
+        "trading_style": "Not set",
+        "hit_rate": "Not set",
+        "main_markets": "Not set",
+        "notes": "No additional notes"
+      }
+    },
+    "Tyrone - PastaPizza (Main)": {
+      "serial_id": 3,
+      "bio": {
+        "trading_style": "Not set",
+        "hit_rate": "Not set",
+        "main_markets": "Not set",
+        "notes": "No additional notes"
+      }
+    },
+    "Tyrone - Lovecountry (ALT)": {
+      "serial_id": 4,
+      "bio": {
+        "trading_style": "Not set",
+        "hit_rate": "Not set",
+        "main_markets": "Not set",
+        "notes": "No additional notes"
+      }
+    },
+    "Tyrone - 0XdAF (ALT)": {
+      "serial_id": 5,
+      "bio": {
+        "trading_style": "Not set",
+        "hit_rate": "Not set",
+        "main_markets": "Not set",
+        "notes": "No additional notes"
+      }
+    },
+    "BAdiosB - Insider": {
+      "serial_id": 6,
+      "bio": {
+        "trading_style": "Not set",
+        "hit_rate": "Not set",
+        "main_markets": "Not set",
+        "notes": "No additional notes"
+      }
+    },
+    "9TungSahur - Insider": {
+      "serial_id": 7,
+      "bio": {
+        "trading_style": "Not set",
+        "hit_rate": "Not set",
+        "main_markets": "Not set",
+        "notes": "No additional notes"
+      }
+    },
+    "ricosuave666 - Insider": {
+      "serial_id": 8,
+      "bio": {
+        "trading_style": "Not set",
+        "hit_rate": "Not set",
+        "main_markets": "Not set",
+        "notes": "No additional notes"
+      }
+    },
+    "PorcoRosso - Insider": {
+      "serial_id": 9,
+      "bio": {
+        "trading_style": "Not set",
+        "hit_rate": "Not set",
+        "main_markets": "Not set",
+        "notes": "No additional notes"
+      }
+    },
+    "KoolAid - Insider": {
+      "serial_id": 10,
+      "bio": {
+        "trading_style": "Not set",
+        "hit_rate": "Not set",
+        "main_markets": "Not set",
+        "notes": "No additional notes"
+      }
+    },
+    "Violet-Vinyl - Strike Markets Insider": {
+      "serial_id": 11,
+      "bio": {
+        "trading_style": "Not set",
+        "hit_rate": "Not set",
+        "main_markets": "lebanon strikes",
+        "notes": "No additional notes"
+      }
+    },
+    "Dumbeldor2003 - IDF Insider": {
+      "serial_id": 12,
+      "bio": {
+        "trading_style": "Not set",
+        "hit_rate": "Not set",
+        "main_markets": "Not set",
+        "notes": "No additional notes"
+      }
+    }
+  },
+  "next_serial_id": 13
+}
