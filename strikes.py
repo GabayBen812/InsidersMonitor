@@ -160,8 +160,14 @@ def title_to_slug(title):
     return re.sub(r'[^a-z0-9 ]+', '', title.lower()).strip().replace(' ', '-')
 
 
-def send_discord(webhook, msg):
-    requests.post(webhook, json={"content": msg})
+def send_discord(webhook, msg_or_embed):
+    """Send message to Discord webhook - supports both plain text and embeds"""
+    if isinstance(msg_or_embed, dict) and "embeds" in msg_or_embed:
+        # It's an embed payload
+        requests.post(webhook, json=msg_or_embed)
+    else:
+        # Plain text message
+        requests.post(webhook, json={"content": msg_or_embed})
 
 
 def extract_trade_epoch_and_local(trade, tz="Asia/Jerusalem"):
@@ -230,30 +236,77 @@ def process_trade(user, trade):
 
     ts_epoch, ts_local = extract_trade_epoch_and_local(trade)
 
-    # Check if we should tag @everyone
-    should_tag = USERS[user].get('tag', False)
-    tag_prefix = "@everyone\n\n" if should_tag else ""
-
     # Get serial ID and bio
     serial_id, bio = get_insider_info(user)
-    serial_display = f"🆔 **ID**: #{serial_id}\n" if serial_id else ""
-    bio_display = format_bio(bio)
-
-    msg = (
-        f"{tag_prefix}**{user} Trade Detected**\n\n"
-        f"{serial_display}"
-        f"**Title**: {title}\n"
-        f"**Slug**: {slug}\n"
-        f"**Side**: {side}\n"
-        f"**Outcome**: {outcome}\n"
-        f"**Price**: {price * 100:.2f}%\n"
-        f"**Shares**: {size}\n"
-        f"**Cost**: {cost:.2f} USDC\n"
-        f"🕒 **Executed**: <t:{ts_epoch}:f> (<t:{ts_epoch}:R>) — {ts_local}\n"
-        f"🔗 [Open Event]({url})"
-        f"{bio_display}"
-    )
-    send_discord(USERS[user]['webhook'], msg)
+    
+    # Determine embed color based on side
+    embed_color = 0x00ff00 if side.upper() == "BUY" else 0xff0000  # Green for BUY, Red for SELL
+    
+    # Build embed
+    embed = {
+        "embeds": [{
+            "title": f"💰 {user}",
+            "description": title,
+            "url": url,
+            "color": embed_color,
+            "fields": [
+                {
+                    "name": "📊 Trade Details",
+                    "value": f"**Side**: {side}\n**Outcome**: {outcome}\n**Price**: {price * 100:.2f}%\n**Size**: {size:,.2f} shares",
+                    "inline": True
+                },
+                {
+                    "name": "💵 Cost",
+                    "value": f"**{cost:,.2f} USDC**",
+                    "inline": True
+                },
+                {
+                    "name": "🕒 Executed",
+                    "value": f"<t:{ts_epoch}:R>\n<t:{ts_epoch}:f>",
+                    "inline": True
+                }
+            ],
+            "footer": {
+                "text": f"ID: #{serial_id}" if serial_id else "Insider Monitor"
+            },
+            "timestamp": datetime.fromtimestamp(ts_epoch, tz=timezone.utc).isoformat()
+        }]
+    }
+    
+    # Add bio information if available
+    if bio and any(v not in ["Not set", "No additional notes"] for v in bio.values()):
+        bio_fields = []
+        if bio.get("trading_style") and bio["trading_style"] != "Not set":
+            bio_fields.append(f"**Style**: {bio['trading_style']}")
+        if bio.get("hit_rate") and bio["hit_rate"] != "Not set":
+            bio_fields.append(f"**Hit Rate**: {bio['hit_rate']}")
+        if bio.get("main_markets") and bio["main_markets"] != "Not set":
+            bio_fields.append(f"**Markets**: {bio['main_markets']}")
+        
+        if bio_fields:
+            embed["embeds"][0]["fields"].append({
+                "name": "📈 Insider Profile",
+                "value": "\n".join(bio_fields),
+                "inline": False
+            })
+        
+        # Add notes if available
+        if bio.get("notes") and bio["notes"] != "No additional notes":
+            embed["embeds"][0]["fields"].append({
+                "name": "📝 Notes",
+                "value": bio["notes"][:500],  # Limit length
+                "inline": False
+            })
+    
+    # Prepare payload
+    payload = embed
+    
+    # Add @everyone mention if needed
+    should_tag = USERS[user].get('tag', False)
+    if should_tag:
+        payload["content"] = "@everyone"
+    
+    send_discord(USERS[user]['webhook'], payload)
 
 
 def main():
