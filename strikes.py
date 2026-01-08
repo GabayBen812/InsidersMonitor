@@ -107,6 +107,38 @@ USERS = {
     "tag": True,
     "min_dollar_amount": 50
     },
+    "Rico - AugsburgFClover": {
+    "api": "https://data-api.polymarket.com/activity?user=0x509cd9d117e06a082df649a06e317195f048240a&limit=10&offset=0",
+    "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+    "min_price": 0,
+    "max_price": 1,
+    "tag": True,
+    "min_dollar_amount": 1
+    },
+    "Rico - Alt (metushelah)": {
+    "api": "https://data-api.polymarket.com/activity?user=0x4e74acf9447df43029fedc1fe592775110de6a9f&limit=10&offset=0",
+    "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+    "min_price": 0,
+    "max_price": 1,
+    "tag": True,
+    "min_dollar_amount": 1
+    },
+    "Rico - Alt (ddinhouse)": {
+    "api": "https://data-api.polymarket.com/activity?user=0x03727dd8df63b9aaedebb30db24a7f07522fa86b&limit=10&offset=0",
+    "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+    "min_price": 0,
+    "max_price": 1,
+    "tag": True,
+    "min_dollar_amount": 1
+    },
+    "Rico - Alt (Roimeo5)": {
+    "api": "https://data-api.polymarket.com/activity?user=0xe03e96656bb81d7079a3a84694b7a4a73bb7f375&limit=10&offset=0",
+    "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+    "min_price": 0,
+    "max_price": 1,
+    "tag": True,
+    "min_dollar_amount": 1
+    },
 }
 
 
