@@ -57,7 +57,7 @@
     "9TungSahur - Insider": {
       "serial_id": 7,
       "bio": {
-        "trading_style": "Not set",
+        "trading_style": "only pops up when he gets serious info",
         "hit_rate": "Not set",
         "main_markets": "Not set",
         "notes": "No additional notes"
@@ -66,9 +66,9 @@
     "ricosuave666 - Insider": {
       "serial_id": 8,
       "bio": {
-        "trading_style": "Not set",
+        "trading_style": "Iran June mega insider",
         "hit_rate": "Not set",
-        "main_markets": "Not set",
+        "main_markets": "Iran",
         "notes": "No additional notes"
       }
     },
@@ -93,7 +93,7 @@
     "Violet-Vinyl - Strike Markets Insider": {
       "serial_id": 11,
       "bio": {
-        "trading_style": "Not set",
+        "trading_style": "Lebanon daily strikes insider",
         "hit_rate": "Not set",
         "main_markets": "lebanon strikes",
         "notes": "No additional notes"
@@ -105,9 +105,35 @@
         "trading_style": "Not set",
         "hit_rate": "Not set",
         "main_markets": "Not set",
-        "notes": "No additional notes"
+        "notes": "Lost on lebanon strikes before"
       }
+    },
+    "Raven": {
+      "serial_id": 13,
+      "bio": {
+        "trading_style": "Not set",
+        "hit_rate": "Not set",
+        "main_markets": "Not set",
+        "notes": "No additional notes"
+      },
+      "wallet_address": "0x5fbda3012b33020fd58265779b2836575d8cfb37",
+      "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+      "min_dollar_amount": 500.0,
+      "tag_everyone": true
+    },
+    "Ivan(Purple Pfp)": {
+      "serial_id": 14,
+      "bio": {
+        "trading_style": "Not set",
+        "hit_rate": "Not set",
+        "main_markets": "Not set",
+        "notes": "No additional notes"
+      },
+      "wallet_address": "0xd46be610a32e5c6ee094977e3caf9ab89c525dab",
+      "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+      "min_dollar_amount": 0.0,
+      "tag_everyone": true
     }
   },
-  "next_serial_id": 13
+  "next_serial_id": 15
 }
