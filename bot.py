@@ -184,7 +184,21 @@ async def updatebio(
         )
         return
     
+    # Save to local data.json (for backward compatibility)
     save_data(data)
+    
+    # Also save to Supabase (primary storage)
+    try:
+        from supabase_storage import update_bio_in_supabase
+        update_bio_in_supabase(
+            name=insider,
+            trading_style=trading_style,
+            hit_rate=hit_rate,
+            main_markets=main_markets,
+            notes=notes
+        )
+    except Exception as e:
+        print(f"[ERROR] Failed to update bio in Supabase: {e}")
     
     embed = discord.Embed(
         title=f"✅ Bio Updated: {insider}",
@@ -286,7 +300,7 @@ async def listinsiders(interaction: discord.Interaction):
 @app_commands.describe(
     name="The display name of the insider",
     wallet_address="The wallet address (0x...)",
-    webhook="Discord webhook URL for notifications",
+    webhook="Discord webhook URL for notifications (optional, uses default if not provided)",
     min_dollar_amount="Minimum dollar amount to trigger notifications (default: 0)",
     tag_everyone="Whether to tag @everyone (default: false)"
 )
@@ -294,7 +308,7 @@ async def adduser(
     interaction: discord.Interaction,
     name: str,
     wallet_address: str,
-    webhook: str,
+    webhook: Optional[str] = None,
     min_dollar_amount: Optional[float] = 0.0,
     tag_everyone: Optional[bool] = False
 ):
@@ -307,13 +321,20 @@ async def adduser(
         )
         return
     
-    # Validate webhook URL
-    if not webhook.startswith("https://discord.com/api/webhooks/"):
-        await interaction.response.send_message(
-            "❌ Invalid webhook URL. Must be a Discord webhook URL.",
-            ephemeral=True
-        )
-        return
+    # Use default webhook if not provided
+    DEFAULT_WEBHOOK = "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk"
+    
+    if webhook is None:
+        # Try to get from environment variable first
+        webhook = os.getenv("DISCORD_WEBHOOK", DEFAULT_WEBHOOK)
+    else:
+        # Validate webhook URL if provided
+        if not webhook.startswith("https://discord.com/api/webhooks/"):
+            await interaction.response.send_message(
+                "❌ Invalid webhook URL. Must be a Discord webhook URL.",
+                ephemeral=True
+            )
+            return
     
     data = load_data()
     
@@ -351,7 +372,29 @@ async def adduser(
     )
     embed.add_field(name="Min Dollar Amount", value=f"${min_dollar_amount}", inline=True)
     embed.add_field(name="Tag @everyone", value="Yes" if tag_everyone else "No", inline=True)
-    embed.set_footer(text="⚠️ Remember to add this user to strikes.py USERS dict manually!")
+    
+    # Show webhook status
+    webhook_status = "Default" if webhook == DEFAULT_WEBHOOK else "Custom"
+    embed.add_field(name="Webhook", value=webhook_status, inline=True)
+    
+    # Save to Supabase/local storage automatically (with serial_id)
+    try:
+        from supabase_storage import save_insider_to_supabase
+        success = save_insider_to_supabase(
+            name=name,
+            wallet_address=wallet_address,
+            webhook=webhook,
+            min_dollar_amount=min_dollar_amount,
+            tag_everyone=tag_everyone,
+            serial_id=serial_id  # Include serial_id in Supabase
+        )
+        if success:
+            embed.set_footer(text="✅ Automatically saved to database - no code changes needed!")
+        else:
+            embed.set_footer(text="⚠️ Saved to local storage (Supabase not configured)")
+    except Exception as e:
+        print(f"[ERROR] Failed to save insider: {e}")
+        embed.set_footer(text="⚠️ Could not save to database - check logs")
     
     await interaction.response.send_message(embed=embed)
 

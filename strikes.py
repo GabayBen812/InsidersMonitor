@@ -10,7 +10,20 @@ except Exception:
 
 DATA_FILE = "data.json"
 
-USERS = {
+# Load USERS from Supabase or local storage
+def load_users():
+    """Load users from Supabase or local storage"""
+    try:
+        from supabase_storage import load_insiders_from_supabase
+        users = load_insiders_from_supabase()
+        if users:
+            return users
+    except Exception as e:
+        print(f"⚠️  Could not load from Supabase: {e}")
+        print("   Falling back to hardcoded USERS dict")
+    
+    # Fallback to hardcoded dict
+    return {
     "Tyrone - DigitalPost (ALT)": {
     "api": "https://data-api.polymarket.com/activity?user=0x80cabdce3dd662f94d410e23152ee2fd66df2bf7&limit=10&offset=0",
     "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
@@ -141,6 +154,152 @@ USERS = {
     },
 }
 
+# Load users dynamically from Supabase or use hardcoded fallback
+def load_users():
+    """Load users from Supabase or local storage"""
+    try:
+        from supabase_storage import load_insiders_from_supabase
+        users = load_insiders_from_supabase()
+        if users:
+            print(f"✅ Loaded {len(users)} insiders from database")
+            return users
+    except Exception as e:
+        print(f"⚠️  Could not load from Supabase: {e}")
+        print("   Using hardcoded USERS dict")
+    
+    # Fallback to hardcoded dict above
+    return {
+        "Tyrone - DigitalPost (ALT)": {
+        "api": "https://data-api.polymarket.com/activity?user=0x80cabdce3dd662f94d410e23152ee2fd66df2bf7&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": True,
+        "min_dollar_amount": 100
+        },
+        "Tyrone - JubileeSun (ALT)": {
+        "api": "https://data-api.polymarket.com/activity?user=0xc9762a84234edd08592cbba44bf8fd6943520ad5&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": False,
+        "min_dollar_amount": 50
+        },
+        "Tyrone - PastaPizza (Main)": {
+        "api": "https://data-api.polymarket.com/activity?user=0xec0bc5b9d6f9cf4e88706d1e3efe333c6ee669e6&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": True,
+        "min_dollar_amount": 50
+        },
+        "Tyrone - Lovecountry (ALT)": {
+        "api": "https://data-api.polymarket.com/activity?user=0xc18f1a8fc24eb3cfc424ffb2405348d532e9605a&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": False,
+        "min_dollar_amount": 50
+        },
+        "Tyrone - 0XdAF (ALT)": {
+        "api": "https://data-api.polymarket.com/activity?user=0xdaf51a2383f994537f851e5827fbab20d597661d&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": True,
+        "min_dollar_amount": 100
+        },
+        "BAdiosB - Insider": {
+        "api": "https://data-api.polymarket.com/activity?user=0x909fa9f89976058b8b3ab87adc502ec7415ea8c3&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": True,
+        "min_dollar_amount": 10
+        },
+        "9TungSahur - Insider": {
+        "api": "https://data-api.polymarket.com/activity?user=0x6c2c072a0aa8fb8b4faf9aecae5520541f3b2d2a&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": True,
+        "min_dollar_amount": 0
+        },
+        "ricosuave666 - Insider": {
+        "api": "https://data-api.polymarket.com/activity?user=0x0afc7ce56285bde1fbe3a75efaffdfc86d6530b2&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": True,
+        "min_dollar_amount": 0
+        },
+        "PorcoRosso - Insider": {
+        "api": "https://data-api.polymarket.com/activity?user=0xd5de5cad9ef22b16317fe30a4234c72ece3eac1a&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": True,
+        "min_dollar_amount": 0
+        },
+        "KoolAid - Insider": {
+        "api": "https://data-api.polymarket.com/activity?user=0x711cf2d57de4c9aa53dd2c0bff3a2bf818688495&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": True,
+        "min_dollar_amount": 100
+        },
+        "Violet-Vinyl - Strike Markets Insider": {
+        "api": "https://data-api.polymarket.com/activity?user=0x9eb1f9602242b2218f55275fbab16e7eb239fc21&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": True,
+        "min_dollar_amount": 50
+        },
+        "Dumbeldor2003 - IDF Insider": {
+        "api": "https://data-api.polymarket.com/activity?user=0x31646fb225a7743287e760e44923345644513033&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": True,
+        "min_dollar_amount": 50
+        },
+        "Rico - AugsburgFClover": {
+        "api": "https://data-api.polymarket.com/activity?user=0x509cd9d117e06a082df649a06e317195f048240a&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": True,
+        "min_dollar_amount": 1
+        },
+        "Rico - Alt (metushelah)": {
+        "api": "https://data-api.polymarket.com/activity?user=0x4e74acf9447df43029fedc1fe592775110de6a9f&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": True,
+        "min_dollar_amount": 1
+        },
+        "Rico - Alt (ddinhouse)": {
+        "api": "https://data-api.polymarket.com/activity?user=0x03727dd8df63b9aaedebb30db24a7f07522fa86b&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": True,
+        "min_dollar_amount": 1
+        },
+        "Rico - Alt (Roimeo5)": {
+        "api": "https://data-api.polymarket.com/activity?user=0xe03e96656bb81d7079a3a84694b7a4a73bb7f375&limit=10&offset=0",
+        "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
+        "min_price": 0,
+        "max_price": 1,
+        "tag": True,
+        "min_dollar_amount": 1
+        },
+    }
+
+USERS = load_users()
 
 old_tx = {user: None for user in USERS}
 my_holdings = set()
@@ -156,7 +315,18 @@ def load_insider_data():
 
 
 def get_insider_info(user_name):
-    """Get serial ID and bio for an insider"""
+    """Get serial ID and bio for an insider - tries Supabase first, then local data.json"""
+    # Try Supabase first
+    try:
+        from supabase_storage import load_bio_data_from_supabase
+        supabase_data = load_bio_data_from_supabase()
+        if user_name in supabase_data.get("insiders", {}):
+            insider = supabase_data["insiders"][user_name]
+            return insider.get("serial_id"), insider.get("bio", {})
+    except Exception as e:
+        print(f"⚠️  Could not load bio from Supabase: {e}")
+    
+    # Fallback to local data.json
     data = load_insider_data()
     if user_name in data.get("insiders", {}):
         insider = data["insiders"][user_name]
@@ -342,7 +512,32 @@ def process_trade(user, trade):
 
 
 def main():
+    global USERS, old_tx
+    reload_counter = 0
+    RELOAD_INTERVAL = 60  # Reload users every 60 iterations (5 minutes)
+    
     while True:
+        # Periodically reload users from database to pick up new insiders
+        reload_counter += 1
+        if reload_counter >= RELOAD_INTERVAL:
+            try:
+                new_users = load_users()
+                # Add new users to old_tx tracking
+                for user in new_users:
+                    if user not in old_tx:
+                        old_tx[user] = None
+                        print(f"✅ New insider detected: {user}")
+                # Remove users that were deleted
+                removed_users = set(USERS.keys()) - set(new_users.keys())
+                for user in removed_users:
+                    if user in old_tx:
+                        del old_tx[user]
+                        print(f"⚠️  Insider removed: {user}")
+                USERS = new_users
+                reload_counter = 0
+            except Exception as e:
+                print(f"⚠️  Error reloading users: {e}")
+        
         for user, config in USERS.items():
             try:
                 data = fetch_data(config['api'])
