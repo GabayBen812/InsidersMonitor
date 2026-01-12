@@ -15,7 +15,30 @@ except ImportError:
     print("⚠️  supabase-py not installed. Install with: pip install supabase")
     print("   Falling back to local storage (data.json)")
 
-# Configuration
+# Load .env file if available (do this AFTER checking for supabase)
+try:
+    from dotenv import load_dotenv
+    # Try to load from current directory and common locations
+    env_loaded = False
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    for env_path in ['.env', os.path.join(script_dir, '.env'), os.path.expanduser('~/InsidersMonitor/.env')]:
+        if os.path.exists(env_path):
+            load_dotenv(env_path, override=True)
+            print(f"✅ Loaded .env from: {env_path}")
+            env_loaded = True
+            break
+    if not env_loaded:
+        # Try default location (current working directory)
+        load_dotenv(override=True)
+        if os.path.exists('.env'):
+            print(f"✅ Loaded .env from current directory")
+        else:
+            print(f"⚠️  No .env file found - will use system environment variables")
+except ImportError:
+    print("⚠️  python-dotenv not installed. Install with: pip install python-dotenv")
+    print("   Will use system environment variables only")
+
+# Configuration - read from environment (will be empty if not set)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 TABLE_NAME = "insiders"  # Table name in Supabase
@@ -26,13 +49,29 @@ LOCAL_DATA_FILE = "insiders_data.json"
 def get_supabase_client() -> Optional[Client]:
     """Get Supabase client if configured"""
     if not SUPABASE_AVAILABLE:
+        print("⚠️  Supabase library not available (pip install supabase)")
         return None
-    if not SUPABASE_URL or not SUPABASE_KEY:
+    
+    # Re-check environment variables (in case .env was loaded after module import)
+    url = os.getenv("SUPABASE_URL", SUPABASE_URL)
+    key = os.getenv("SUPABASE_KEY", SUPABASE_KEY)
+    
+    if not url or not key:
+        print(f"⚠️  Supabase credentials missing!")
+        print(f"   SUPABASE_URL: {'SET' if url else 'NOT SET'}")
+        print(f"   SUPABASE_KEY: {'SET' if key else 'NOT SET'}")
+        print(f"   Current working directory: {os.getcwd()}")
+        print(f"   .env file exists: {os.path.exists('.env')}")
         return None
+    
     try:
-        return create_client(SUPABASE_URL, SUPABASE_KEY)
+        client = create_client(url, key)
+        print(f"✅ Supabase client created successfully")
+        return client
     except Exception as e:
         print(f"⚠️  Failed to connect to Supabase: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def load_insiders_from_supabase() -> Dict:

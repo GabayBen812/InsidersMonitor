@@ -387,13 +387,122 @@ def title_to_slug(title):
 
 def send_discord(webhook, msg_or_embed):
     """Send message to Discord webhook - supports both plain text and embeds"""
-    if isinstance(msg_or_embed, dict) and "embeds" in msg_or_embed:
-        # It's an embed payload
-        requests.post(webhook, json=msg_or_embed)
-    else:
-        # Plain text message
-        requests.post(webhook, json={"content": msg_or_embed})
+    try:
+        if isinstance(msg_or_embed, dict) and "embeds" in msg_or_embed:
+            # It's an embed payload
+            requests.post(webhook, json=msg_or_embed, timeout=10)
+        else:
+            # Plain text message
+            requests.post(webhook, json={"content": msg_or_embed}, timeout=10)
+    except Exception as e:
+        log(f"⚠️  Discord webhook error: {e}")
 
+def send_startup_notification(users_dict, initialized_count, total_count):
+    """Send a nice startup notification to Discord"""
+    # Get the first webhook from any user (or use a default)
+    webhook = None
+    for user, config in users_dict.items():
+        if config.get('webhook'):
+            webhook = config['webhook']
+            break
+    
+    if not webhook:
+        log("⚠️  No webhook found for startup notification")
+        return
+    
+    # Get list of insider names (first 10)
+    insider_names = list(users_dict.keys())[:10]
+    names_text = "\n".join([f"• {name}" for name in insider_names])
+    if len(users_dict) > 10:
+        names_text += f"\n• ... and {len(users_dict) - 10} more"
+    
+    # Create embed
+    embed = {
+        "embeds": [{
+            "title": "🚀 Insider Monitor Started",
+            "description": f"Successfully initialized and monitoring **{total_count} insiders**",
+            "color": 0x00ff00,  # Green
+            "fields": [
+                {
+                    "name": "📊 Status",
+                    "value": f"**{initialized_count}/{total_count}** insiders initialized\n✅ Ready to monitor trades",
+                    "inline": True
+                },
+                {
+                    "name": "⏰ Monitoring",
+                    "value": "Checking for new trades every 5 seconds",
+                    "inline": True
+                },
+                {
+                    "name": "👥 Tracked Insiders",
+                    "value": names_text[:1024],  # Discord field limit
+                    "inline": False
+                }
+            ],
+            "footer": {
+                "text": "Insider Monitor v2.0"
+            },
+            "timestamp": datetime.now(tz=timezone.utc).isoformat()
+        }]
+    }
+    
+    try:
+        send_discord(webhook, embed)
+        log("📤 Sent startup notification to Discord")
+    except Exception as e:
+        log(f"⚠️  Failed to send startup notification: {e}")
+
+def send_keepalive_notification(users_dict):
+    """Send a daily keepalive notification to confirm the script is running"""
+    # Get the first webhook from any user
+    webhook = None
+    for user, config in users_dict.items():
+        if config.get('webhook'):
+            webhook = config['webhook']
+            break
+    
+    if not webhook:
+        return
+    
+    # Count active insiders
+    total_count = len(users_dict)
+    now = datetime.now(tz=timezone.utc)
+    
+    # Create embed
+    embed = {
+        "embeds": [{
+            "title": "💚 Keepalive - Monitor Running",
+            "description": f"Insider Monitor is active and monitoring **{total_count} insiders**",
+            "color": 0x00ff00,  # Green
+            "fields": [
+                {
+                    "name": "📊 Status",
+                    "value": "✅ All systems operational\n🔄 Monitoring active",
+                    "inline": True
+                },
+                {
+                    "name": "⏰ Time",
+                    "value": f"<t:{int(now.timestamp())}:F>\nDaily check-in",
+                    "inline": True
+                },
+                {
+                    "name": "📈 Activity",
+                    "value": f"Monitoring **{total_count} insiders**\nChecking every 5 seconds",
+                    "inline": False
+                }
+            ],
+            "footer": {
+                "text": "Insider Monitor - Daily Keepalive"
+            },
+            "timestamp": now.isoformat()
+        }]
+    }
+    
+    try:
+        send_discord(webhook, embed)
+        log("📤 Sent daily keepalive notification to Discord")
+    except Exception as e:
+        log(f"⚠️  Failed to send keepalive notification: {e}")
 
 def extract_trade_epoch_and_local(trade, tz="Asia/Jerusalem"):
     """
@@ -554,6 +663,7 @@ def main():
     reload_counter = 0
     RELOAD_INTERVAL = 60  # Reload users every 60 iterations (5 minutes)
     iteration_count = 0
+    last_keepalive_date = None  # Track last date keepalive was sent
     
     log(f"🚀 Starting monitor for {len(USERS)} insiders...")
     log(f"📋 Tracking: {', '.join(list(USERS.keys())[:5])}{'...' if len(USERS) > 5 else ''}")
@@ -592,6 +702,9 @@ def main():
     log(f"📊 Initialization complete: {initialized_count}/{total_count} insiders have baseline transactions")
     if initialized_count < total_count:
         log(f"   (The remaining {total_count - initialized_count} will be initialized when their API returns data)")
+    
+    # Send startup notification to Discord
+    send_startup_notification(USERS, initialized_count, total_count)
     
     log(f"✅ Ready to monitor! Starting main loop...\n")
     
@@ -687,6 +800,16 @@ def main():
             elapsed = time.time() - iteration_start
             log(f"🔄 Iteration {iteration_count}: Checked {checked_count} insiders in {elapsed:.2f}s")
             log(f"   Still monitoring for new trades... (baseline hashes set for all insiders)\n")
+        
+        # Daily keepalive notification at 16:00 (4 PM)
+        now = datetime.now(tz=timezone.utc)
+        current_hour = now.hour
+        current_date = now.date()
+        
+        # Check if it's 16:00 (4 PM) and we haven't sent keepalive today
+        if current_hour == 16 and last_keepalive_date != current_date:
+            send_keepalive_notification(USERS)
+            last_keepalive_date = current_date
         
         time.sleep(5)
 
