@@ -17,13 +17,23 @@ def load_users():
         from supabase_storage import load_insiders_from_supabase
         users = load_insiders_from_supabase()
         if users:
+            print(f"✅ Loaded {len(users)} insiders from database")
+            # Debug: print first few user names
+            if users:
+                user_names = list(users.keys())[:3]
+                print(f"   Sample: {', '.join(user_names)}")
             return users
     except Exception as e:
         print(f"⚠️  Could not load from Supabase: {e}")
+        import traceback
+        traceback.print_exc()
         print("   Falling back to hardcoded USERS dict")
     
-    # Fallback to hardcoded dict
-    return {
+    # Fallback to hardcoded dict (defined below)
+    return _FALLBACK_USERS
+
+# Fallback users dict (used if Supabase/local storage fails)
+_FALLBACK_USERS = {
     "Tyrone - DigitalPost (ALT)": {
     "api": "https://data-api.polymarket.com/activity?user=0x80cabdce3dd662f94d410e23152ee2fd66df2bf7&limit=10&offset=0",
     "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
@@ -154,21 +164,8 @@ def load_users():
     },
 }
 
-# Load users dynamically from Supabase or use hardcoded fallback
-def load_users():
-    """Load users from Supabase or local storage"""
-    try:
-        from supabase_storage import load_insiders_from_supabase
-        users = load_insiders_from_supabase()
-        if users:
-            print(f"✅ Loaded {len(users)} insiders from database")
-            return users
-    except Exception as e:
-        print(f"⚠️  Could not load from Supabase: {e}")
-        print("   Using hardcoded USERS dict")
-    
-    # Fallback to hardcoded dict above
-    return {
+# Note: load_users() is defined above, this is just the fallback dict
+_FALLBACK_USERS = {
         "Tyrone - DigitalPost (ALT)": {
         "api": "https://data-api.polymarket.com/activity?user=0x80cabdce3dd662f94d410e23152ee2fd66df2bf7&limit=10&offset=0",
         "webhook": "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk",
@@ -508,15 +505,41 @@ def process_trade(user, trade):
     if should_tag:
         payload["content"] = "@everyone"
     
-    send_discord(USERS[user]['webhook'], payload)
+    webhook_url = USERS[user].get('webhook')
+    if not webhook_url:
+        print(f"❌ No webhook configured for {user}")
+        return
+    
+    try:
+        send_discord(webhook_url, payload)
+        print(f"📤 Sent notification for {user} trade")
+    except Exception as e:
+        print(f"❌ Failed to send Discord message for {user}: {e}")
+        import traceback
+        traceback.print_exc()
+    except Exception as e:
+        print(f"❌ Error in process_trade for {user}: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def main():
     global USERS, old_tx
     reload_counter = 0
     RELOAD_INTERVAL = 60  # Reload users every 60 iterations (5 minutes)
+    iteration_count = 0
+    
+    print(f"🚀 Starting monitor for {len(USERS)} insiders...")
+    print(f"📋 Tracking: {', '.join(list(USERS.keys())[:5])}{'...' if len(USERS) > 5 else ''}")
+    print(f"⏰ Checking for new trades every 5 seconds...\n")
+    
+    # Initialize old_tx with None for all users (will process latest trade on first run)
+    for user in USERS:
+        if user not in old_tx:
+            old_tx[user] = None
     
     while True:
+        iteration_count += 1
         # Periodically reload users from database to pick up new insiders
         reload_counter += 1
         if reload_counter >= RELOAD_INTERVAL:
@@ -538,17 +561,76 @@ def main():
             except Exception as e:
                 print(f"⚠️  Error reloading users: {e}")
         
+        iteration_start = time.time()
+        checked_count = 0
         for user, config in USERS.items():
             try:
                 data = fetch_data(config['api'])
-                if data and isinstance(data, list):
-                    latest = data[0]
-                    tx = latest['transactionHash']
-                    if tx != old_tx[user] and latest['type'] == 'TRADE':
+                if not data:
+                    # Only log this occasionally to avoid spam
+                    if iteration_count % 12 == 0:
+                        print(f"⚠️  No data returned for {user}")
+                    continue
+                    
+                if not isinstance(data, list):
+                    print(f"⚠️  Unexpected data format for {user}: {type(data)}")
+                    continue
+                
+                if len(data) == 0:
+                    # Only log this occasionally to avoid spam
+                    if iteration_count % 12 == 0:
+                        print(f"⚠️  Empty data array for {user}")
+                    continue
+                
+                latest = data[0]
+                
+                # Check if it's a trade
+                activity_type = latest.get('type')
+                if activity_type != 'TRADE':
+                    # Silently skip non-trade activities (but log occasionally for debugging)
+                    if iteration_count % 24 == 0 and checked_count == 0:
+                        print(f"ℹ️  Latest activity for {user} is {activity_type}, not TRADE")
+                    continue
+                
+                tx = latest.get('transactionHash')
+                if not tx:
+                    print(f"⚠️  No transactionHash for {user}")
+                    continue
+                
+                checked_count += 1
+                
+                # Check if this is a new trade
+                if old_tx.get(user) is None:
+                    # First time seeing this user - set the hash as baseline (don't process old trades on startup)
+                    old_tx[user] = tx
+                    print(f"📌 Initialized tracking for {user} (baseline tx: {tx[:10]}...)")
+                    continue
+                
+                if tx != old_tx[user]:
+                    print(f"🆕 New trade detected for {user}: {tx[:10]}... (was: {old_tx[user][:10] if old_tx[user] else 'None'}...)")
+                    try:
                         process_trade(user, latest)
                         old_tx[user] = tx
+                        print(f"✅ Trade processed and sent for {user}")
+                    except Exception as e:
+                        print(f"❌ Error processing trade for {user}: {e}")
+                        import traceback
+                        traceback.print_exc()
+                # else: same trade, no action needed (this is normal - waiting for new trades)
+                    
+            except KeyError as e:
+                print(f"❌ Missing key in data for {user}: {e}")
             except Exception as e:
-                print(f"Error fetching {user}:", e)
+                print(f"❌ Error fetching {user}: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Log iteration summary every 12 iterations (1 minute)
+        if iteration_count % 12 == 0:
+            elapsed = time.time() - iteration_start
+            print(f"🔄 Iteration {iteration_count}: Checked {checked_count} insiders in {elapsed:.2f}s")
+            print(f"   Still monitoring for new trades... (baseline hashes set for all insiders)\n")
+        
         time.sleep(5)
 
 
