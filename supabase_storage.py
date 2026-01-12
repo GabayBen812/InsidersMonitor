@@ -39,25 +39,45 @@ def load_insiders_from_supabase() -> Dict:
     """Load all insiders from Supabase"""
     client = get_supabase_client()
     if not client:
+        print("⚠️  No Supabase client available - falling back to local storage")
         return load_insiders_local()
     
     try:
         response = client.table(TABLE_NAME).select("*").execute()
+        total_rows = len(response.data) if response.data else 0
+        print(f"📊 Supabase returned {total_rows} total rows from database")
+        
         insiders = {}
+        skipped = 0
         for row in response.data:
             name = row.get("name")
             if name:
+                wallet = row.get("wallet_address", "")
+                if not wallet:
+                    print(f"⚠️  Skipping {name}: no wallet_address")
+                    skipped += 1
+                    continue
                 insiders[name] = {
-                    "api": f"https://data-api.polymarket.com/activity?user={row.get('wallet_address', '')}&limit=10&offset=0",
+                    "api": f"https://data-api.polymarket.com/activity?user={wallet}&limit=10&offset=0",
                     "webhook": row.get("webhook", ""),
                     "min_price": row.get("min_price", 0),
                     "max_price": row.get("max_price", 1),
                     "tag": row.get("tag_everyone", False),
                     "min_dollar_amount": row.get("min_dollar_amount", 0)
                 }
+            else:
+                print(f"⚠️  Skipping row with no name: {row}")
+                skipped += 1
+        
+        print(f"✅ Loaded {len(insiders)} insiders from Supabase (skipped {skipped} invalid rows)")
+        if len(insiders) != total_rows:
+            print(f"⚠️  Warning: Expected {total_rows} insiders but only loaded {len(insiders)}")
+        
         return insiders
     except Exception as e:
         print(f"⚠️  Error loading from Supabase: {e}")
+        import traceback
+        traceback.print_exc()
         print("   Falling back to local storage")
         return load_insiders_local()
 

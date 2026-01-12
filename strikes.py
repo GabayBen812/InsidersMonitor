@@ -364,8 +364,21 @@ def format_bio(bio):
     return ""
 
 
-def fetch_data(url):
-    return requests.get(url).json()
+def fetch_data(url, timeout=10):
+    """Fetch data from API with error handling"""
+    try:
+        response = requests.get(url, timeout=timeout)
+        response.raise_for_status()  # Raise exception for bad status codes
+        return response.json()
+    except requests.exceptions.Timeout:
+        log(f"⚠️  API timeout for {url[:50]}...")
+        return None
+    except requests.exceptions.RequestException as e:
+        log(f"⚠️  API error: {e}")
+        return None
+    except ValueError as e:  # JSON decode error
+        log(f"⚠️  Invalid JSON response: {e}")
+        return None
 
 
 def title_to_slug(title):
@@ -548,9 +561,37 @@ def main():
     
     # Initialize old_tx with None for all users (will process latest trade on first run)
     log(f"🔧 Initializing tracking for {len(USERS)} insiders...")
-    for user in USERS:
+    
+    # Initialize baseline transaction hashes BEFORE entering main loop
+    # This ensures we have a baseline even if API calls fail
+    for user, config in USERS.items():
         if user not in old_tx:
             old_tx[user] = None
+            try:
+                # Try to get the latest trade to set as baseline
+                data = fetch_data(config['api'])
+                if data and isinstance(data, list) and len(data) > 0:
+                    latest = data[0]
+                    if latest.get('type') == 'TRADE':
+                        tx = latest.get('transactionHash')
+                        if tx:
+                            old_tx[user] = tx
+                            log(f"📌 Initialized tracking for {user} (baseline tx: {tx[:10]}...)")
+                        else:
+                            log(f"⚠️  No transactionHash for {user} - will retry in main loop")
+                    else:
+                        log(f"⚠️  Latest activity for {user} is {latest.get('type')}, not TRADE - will retry in main loop")
+                else:
+                    log(f"⚠️  No data returned for {user} - will retry in main loop")
+            except Exception as e:
+                log(f"⚠️  Error initializing {user}: {e} - will retry in main loop")
+    
+    # Summary: Count how many insiders were successfully initialized
+    initialized_count = sum(1 for tx in old_tx.values() if tx is not None)
+    total_count = len(old_tx)
+    log(f"📊 Initialization complete: {initialized_count}/{total_count} insiders have baseline transactions")
+    if initialized_count < total_count:
+        log(f"   (The remaining {total_count - initialized_count} will be initialized when their API returns data)")
     
     log(f"✅ Ready to monitor! Starting main loop...\n")
     
