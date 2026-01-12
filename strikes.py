@@ -2,11 +2,24 @@ import time
 import requests
 import re
 import json
+import sys
 from datetime import datetime, timezone
 try:
     from zoneinfo import ZoneInfo  # py>=3.9
 except Exception:
     ZoneInfo = None
+
+# Force unbuffered output for systemd/journalctl
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except:
+        pass
+
+# Helper function for immediate output flushing
+def log(msg, flush=True):
+    """Print with automatic flushing for systemd compatibility"""
+    print(msg, flush=flush)
 
 DATA_FILE = "data.json"
 
@@ -17,17 +30,17 @@ def load_users():
         from supabase_storage import load_insiders_from_supabase
         users = load_insiders_from_supabase()
         if users:
-            print(f"✅ Loaded {len(users)} insiders from database")
+            log(f"✅ Loaded {len(users)} insiders from database")
             # Debug: print first few user names
             if users:
                 user_names = list(users.keys())[:3]
-                print(f"   Sample: {', '.join(user_names)}")
+                log(f"   Sample: {', '.join(user_names)}")
             return users
     except Exception as e:
-        print(f"⚠️  Could not load from Supabase: {e}")
+        log(f"⚠️  Could not load from Supabase: {e}")
         import traceback
         traceback.print_exc()
-        print("   Falling back to hardcoded USERS dict")
+        log("   Falling back to hardcoded USERS dict")
     
     # Fallback to hardcoded dict (defined below)
     return _FALLBACK_USERS
@@ -507,7 +520,7 @@ def process_trade(user, trade):
     
     webhook_url = USERS[user].get('webhook')
     if not webhook_url:
-        print(f"❌ No webhook configured for {user}")
+        print(f"❌ No webhook configured for {user}", flush=True)
         return
     
     try:
@@ -529,14 +542,17 @@ def main():
     RELOAD_INTERVAL = 60  # Reload users every 60 iterations (5 minutes)
     iteration_count = 0
     
-    print(f"🚀 Starting monitor for {len(USERS)} insiders...")
-    print(f"📋 Tracking: {', '.join(list(USERS.keys())[:5])}{'...' if len(USERS) > 5 else ''}")
-    print(f"⏰ Checking for new trades every 5 seconds...\n")
+    log(f"🚀 Starting monitor for {len(USERS)} insiders...")
+    log(f"📋 Tracking: {', '.join(list(USERS.keys())[:5])}{'...' if len(USERS) > 5 else ''}")
+    log(f"⏰ Checking for new trades every 5 seconds...\n")
     
     # Initialize old_tx with None for all users (will process latest trade on first run)
+    log(f"🔧 Initializing tracking for {len(USERS)} insiders...")
     for user in USERS:
         if user not in old_tx:
             old_tx[user] = None
+    
+    log(f"✅ Ready to monitor! Starting main loop...\n")
     
     while True:
         iteration_count += 1
@@ -569,17 +585,17 @@ def main():
                 if not data:
                     # Only log this occasionally to avoid spam
                     if iteration_count % 12 == 0:
-                        print(f"⚠️  No data returned for {user}")
+                        print(f"⚠️  No data returned for {user}", flush=True)
                     continue
                     
                 if not isinstance(data, list):
-                    print(f"⚠️  Unexpected data format for {user}: {type(data)}")
+                    print(f"⚠️  Unexpected data format for {user}: {type(data)}", flush=True)
                     continue
                 
                 if len(data) == 0:
                     # Only log this occasionally to avoid spam
                     if iteration_count % 12 == 0:
-                        print(f"⚠️  Empty data array for {user}")
+                        print(f"⚠️  Empty data array for {user}", flush=True)
                     continue
                 
                 latest = data[0]
@@ -628,11 +644,20 @@ def main():
         # Log iteration summary every 12 iterations (1 minute)
         if iteration_count % 12 == 0:
             elapsed = time.time() - iteration_start
-            print(f"🔄 Iteration {iteration_count}: Checked {checked_count} insiders in {elapsed:.2f}s")
-            print(f"   Still monitoring for new trades... (baseline hashes set for all insiders)\n")
+            log(f"🔄 Iteration {iteration_count}: Checked {checked_count} insiders in {elapsed:.2f}s")
+            log(f"   Still monitoring for new trades... (baseline hashes set for all insiders)\n")
         
         time.sleep(5)
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        log("\n⚠️  Script interrupted by user")
+        sys.exit(0)
+    except Exception as e:
+        log(f"\n❌ Fatal error in main(): {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
