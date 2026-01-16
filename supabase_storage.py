@@ -131,7 +131,30 @@ def load_bio_data_from_supabase() -> Dict:
         response = client.table(TABLE_NAME).select("name, serial_id, trading_style, hit_rate, main_markets, notes").execute()
         insiders = {}
         max_serial_id = 0
-        
+        missing_serials = []
+
+        for row in response.data:
+            name = row.get("name")
+            if not name:
+                continue
+            serial_id = row.get("serial_id")
+            if isinstance(serial_id, int) and serial_id > 0:
+                max_serial_id = max(max_serial_id, serial_id)
+            else:
+                missing_serials.append(name)
+
+        # Backfill missing serial_id values in Supabase
+        next_serial_id = max_serial_id + 1
+        for name in missing_serials:
+            try:
+                client.table(TABLE_NAME).update({"serial_id": next_serial_id}).eq("name", name).execute()
+                max_serial_id = max(max_serial_id, next_serial_id)
+                next_serial_id += 1
+            except Exception as e:
+                print(f"❌ ERROR: Failed to backfill serial_id for {name}: {e}")
+
+        # Build insiders map (re-read to ensure we use updated serial_id values)
+        response = client.table(TABLE_NAME).select("name, serial_id, trading_style, hit_rate, main_markets, notes").execute()
         for row in response.data:
             name = row.get("name")
             if name:
@@ -146,7 +169,7 @@ def load_bio_data_from_supabase() -> Dict:
                         "notes": row.get("notes") or "No additional notes"
                     }
                 }
-        
+
         return {"insiders": insiders, "next_serial_id": max_serial_id + 1}
     except Exception as e:
         print(f"❌ ERROR loading bio data from Supabase: {e}")
