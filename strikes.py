@@ -37,16 +37,15 @@ def load_users():
         else:
             log(f"⚠️  No insiders found in database. Database may be empty.")
     return {}
-
-
-# Only alert on trades that are recent (prevents old trade spam on restarts)
-MAX_TRADE_AGE_SECONDS = 300  # 5 minutes
     except Exception as e:
         log(f"❌ ERROR: Could not load from Supabase: {e}")
         import traceback
         traceback.print_exc()
         log("   Supabase connection failed - cannot continue without database.")
         return {}
+
+# Only alert on trades that are recent (prevents old trade spam on restarts)
+MAX_TRADE_AGE_SECONDS = 300  # 5 minutes
 
 # No hardcoded fallback - Supabase only
 
