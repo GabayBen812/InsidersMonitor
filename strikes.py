@@ -36,7 +36,11 @@ def load_users():
             return users
         else:
             log(f"⚠️  No insiders found in database. Database may be empty.")
-            return {}
+    return {}
+
+
+# Only alert on trades that are recent (prevents old trade spam on restarts)
+MAX_TRADE_AGE_SECONDS = 300  # 5 minutes
     except Exception as e:
         log(f"❌ ERROR: Could not load from Supabase: {e}")
         import traceback
@@ -279,6 +283,23 @@ def extract_trade_epoch_and_local(trade, tz="Asia/Jerusalem"):
     return epoch, local_str
 
 
+def get_latest_trade(activity_list):
+    """Return the most recent TRADE item from activity_list or None."""
+    if not activity_list or not isinstance(activity_list, list):
+        return None
+    trades = [t for t in activity_list if t.get("type") == "TRADE" and t.get("transactionHash")]
+    if not trades:
+        return None
+
+    def trade_epoch(t):
+        try:
+            return extract_trade_epoch_and_local(t)[0]
+        except Exception:
+            return 0
+
+    return max(trades, key=trade_epoch)
+
+
 
 def process_trade(user, trade):
     title = trade['title']
@@ -407,20 +428,17 @@ def main():
             try:
                 # Try to get the latest trade to set as baseline
                 data = fetch_data(config['api'])
-                if data and isinstance(data, list) and len(data) > 0:
-                    latest = data[0]
-                    if latest.get('type') == 'TRADE':
-                        tx = latest.get('transactionHash')
-                        if tx:
-                            old_tx[user] = tx
-                            # Mark baseline trade as processed to prevent sending it
-                            trade_id = f"{user}:{tx}"
-                            processed_trades.add(trade_id)
-                            log(f"📌 Initialized tracking for {user} (baseline tx: {tx[:10]}...)")
-                        else:
-                            log(f"⚠️  No transactionHash for {user} - will retry in main loop")
+                latest = get_latest_trade(data)
+                if latest:
+                    tx = latest.get('transactionHash')
+                    if tx:
+                        old_tx[user] = tx
+                        # Mark baseline trade as processed to prevent sending it
+                        trade_id = f"{user}:{tx}"
+                        processed_trades.add(trade_id)
+                        log(f"📌 Initialized tracking for {user} (baseline tx: {tx[:10]}...)")
                     else:
-                        log(f"⚠️  Latest activity for {user} is {latest.get('type')}, not TRADE - will retry in main loop")
+                        log(f"⚠️  No transactionHash for {user} - will retry in main loop")
                 else:
                     log(f"⚠️  No data returned for {user} - will retry in main loop")
             except Exception as e:
@@ -482,14 +500,11 @@ def main():
                         print(f"⚠️  Empty data array for {user}", flush=True)
                     continue
                 
-                latest = data[0]
-                
-                # Check if it's a trade
-                activity_type = latest.get('type')
-                if activity_type != 'TRADE':
-                    # Silently skip non-trade activities (but log occasionally for debugging)
+                latest = get_latest_trade(data)
+                if not latest:
+                    # Silently skip if no trades found
                     if iteration_count % 24 == 0 and checked_count == 0:
-                        print(f"ℹ️  Latest activity for {user} is {activity_type}, not TRADE")
+                        print(f"ℹ️  No TRADE activity found for {user}")
                     continue
                 
                 tx = latest.get('transactionHash')
@@ -517,6 +532,14 @@ def main():
                     continue
                 
                 if tx != old_tx[user]:
+                    # Skip old trades to avoid spam on restarts or delayed API updates
+                    ts_epoch, _ = extract_trade_epoch_and_local(latest)
+                    now_epoch = int(datetime.now(tz=timezone.utc).timestamp())
+                    if now_epoch - ts_epoch > MAX_TRADE_AGE_SECONDS:
+                        old_tx[user] = tx
+                        processed_trades.add(trade_id)
+                        print(f"⏭️  Skipping old trade for {user} ({now_epoch - ts_epoch}s old)")
+                        continue
                     print(f"🆕 New trade detected for {user}: {tx[:10]}... (was: {old_tx[user][:10] if old_tx[user] else 'None'}...)")
                     try:
                         process_trade(user, latest)
