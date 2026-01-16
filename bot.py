@@ -305,8 +305,8 @@ async def adduser(
     DEFAULT_WEBHOOK = "https://discord.com/api/webhooks/1435978926416465951/sU9YdR8nFbJcNmKah9-wSAbbqsjv8Db-KeCDW-C_3KjqoplH_FLehYnB5RVZxObE79Nk"
     
     if webhook is None:
-        # Try to get from environment variable first
-        webhook = os.getenv("DISCORD_WEBHOOK", DEFAULT_WEBHOOK)
+        # Use the default webhook if none provided
+        webhook = DEFAULT_WEBHOOK
     else:
         # Validate webhook URL if provided
         if not webhook.startswith("https://discord.com/api/webhooks/"):
