@@ -36,7 +36,7 @@ def load_users():
             return users
         else:
             log(f"⚠️  No insiders found in database. Database may be empty.")
-    return {}
+            return {}
     except Exception as e:
         log(f"❌ ERROR: Could not load from Supabase: {e}")
         import traceback
