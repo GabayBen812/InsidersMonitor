@@ -1,7 +1,6 @@
 import time
 import requests
 import re
-import json
 import sys
 from datetime import datetime, timezone
 try:
@@ -21,7 +20,6 @@ def log(msg, flush=True):
     """Print with automatic flushing for systemd compatibility"""
     print(msg, flush=flush)
 
-DATA_FILE = "data.json"
 
 # Load USERS from Supabase only
 def load_users():

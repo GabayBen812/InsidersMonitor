@@ -2,7 +2,6 @@
 Supabase storage for insider configurations.
 ONLY uses Supabase - no local file fallbacks.
 """
-import json
 import os
 from typing import Dict, Optional, List
 

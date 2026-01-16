@@ -1,7 +1,6 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
-import json
 import os
 from typing import Optional
 
@@ -18,12 +17,6 @@ if not BOT_TOKEN:
     print("⚠️  Warning: DISCORD_BOT_TOKEN not set. Bot will not start.")
     print("   Set it in your environment or .env file")
 
-DATA_FILE = "data.json"
-USERS_FILE = "strikes.py"
-
-# Load user data from strikes.py (we'll need to parse it or import)
-# For now, we'll manage it separately in data.json
-
 def load_data():
     """Load insider bio data from Supabase - Supabase only, no local fallback"""
     try:
@@ -34,20 +27,6 @@ def load_data():
         return {"insiders": {}, "next_serial_id": 1}
 
 # Removed save_data - all data is stored in Supabase only
-
-def get_insider_list():
-    """Get list of insiders from strikes.py"""
-    try:
-        with open(USERS_FILE, 'r', encoding='utf-8') as f:
-            content = f.read()
-            # Simple extraction of user names from USERS dict
-            import re
-            pattern = r'"([^"]+)":\s*\{'
-            matches = re.findall(pattern, content)
-            return matches
-    except Exception as e:
-        print(f"Error reading users: {e}")
-        return []
 
 # Discord bot setup
 intents = discord.Intents.default()
@@ -393,23 +372,7 @@ async def adduser(
     data = load_data()  # This now loads from Supabase only
     
     # Add new insider
-    serial_id = data["next_serial_id"]
-    data["insiders"][name] = {
-        "serial_id": serial_id,
-        "bio": {
-            "trading_style": "Not set",
-            "hit_rate": "Not set",
-            "main_markets": "Not set",
-            "notes": "No additional notes"
-        },
-        "wallet_address": wallet_address,
-        "webhook": webhook,
-        "min_dollar_amount": min_dollar_amount,
-        "tag_everyone": tag_everyone
-    }
-    data["next_serial_id"] += 1
-    
-    save_data(data)
+    serial_id = data.get("next_serial_id", 1)
     
     embed = discord.Embed(
         title=f"✅ Insider Added: {name}",
@@ -423,7 +386,7 @@ async def adduser(
     webhook_status = "Default" if webhook == DEFAULT_WEBHOOK else "Custom"
     embed.add_field(name="Webhook", value=webhook_status, inline=True)
     
-    # Save to Supabase/local storage automatically (with serial_id)
+    # Save to Supabase (only storage) with serial_id
     try:
         from supabase_storage import save_insider_to_supabase
         success = save_insider_to_supabase(
@@ -435,12 +398,20 @@ async def adduser(
             serial_id=serial_id  # Include serial_id in Supabase
         )
         if success:
-            embed.set_footer(text="✅ Automatically saved to database - no code changes needed!")
+            embed.set_footer(text="✅ Automatically saved to database")
         else:
-            embed.set_footer(text="⚠️ Saved to local storage (Supabase not configured)")
+            await interaction.response.send_message(
+                "❌ ERROR: Failed to save to Supabase. Check your database connection.",
+                ephemeral=True
+            )
+            return
     except Exception as e:
         print(f"[ERROR] Failed to save insider: {e}")
-        embed.set_footer(text="⚠️ Could not save to database - check logs")
+        await interaction.response.send_message(
+            f"❌ ERROR: Failed to save to Supabase. {str(e)}",
+            ephemeral=True
+        )
+        return
     
     await interaction.response.send_message(embed=embed)
 
