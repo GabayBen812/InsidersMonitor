@@ -313,6 +313,8 @@ USERS = load_users()
 
 old_tx = {user: None for user in USERS}
 my_holdings = set()
+# Track all processed trades to prevent duplicates (user + transactionHash)
+processed_trades = set()
 
 
 def load_insider_data():
@@ -659,7 +661,7 @@ def process_trade(user, trade):
 
 
 def main():
-    global USERS, old_tx
+    global USERS, old_tx, processed_trades
     reload_counter = 0
     RELOAD_INTERVAL = 60  # Reload users every 60 iterations (5 minutes)
     iteration_count = 0
@@ -686,6 +688,9 @@ def main():
                         tx = latest.get('transactionHash')
                         if tx:
                             old_tx[user] = tx
+                            # Mark baseline trade as processed to prevent sending it
+                            trade_id = f"{user}:{tx}"
+                            processed_trades.add(trade_id)
                             log(f"📌 Initialized tracking for {user} (baseline tx: {tx[:10]}...)")
                         else:
                             log(f"⚠️  No transactionHash for {user} - will retry in main loop")
@@ -769,10 +774,20 @@ def main():
                 
                 checked_count += 1
                 
+                # Create unique identifier for this trade
+                trade_id = f"{user}:{tx}"
+                
+                # Check if we've already processed this trade (prevents duplicates)
+                if trade_id in processed_trades:
+                    # Already processed, skip
+                    continue
+                
                 # Check if this is a new trade
                 if old_tx.get(user) is None:
                     # First time seeing this user - set the hash as baseline (don't process old trades on startup)
                     old_tx[user] = tx
+                    # Mark as processed so we don't send it
+                    processed_trades.add(trade_id)
                     print(f"📌 Initialized tracking for {user} (baseline tx: {tx[:10]}...)")
                     continue
                 
@@ -781,11 +796,17 @@ def main():
                     try:
                         process_trade(user, latest)
                         old_tx[user] = tx
+                        # Mark this trade as processed to prevent duplicates
+                        processed_trades.add(trade_id)
                         print(f"✅ Trade processed and sent for {user}")
                     except Exception as e:
                         print(f"❌ Error processing trade for {user}: {e}")
                         import traceback
                         traceback.print_exc()
+                else:
+                    # Same trade as before, mark as processed if not already
+                    if trade_id not in processed_trades:
+                        processed_trades.add(trade_id)
                 # else: same trade, no action needed (this is normal - waiting for new trades)
                     
             except KeyError as e:
@@ -799,7 +820,19 @@ def main():
         if iteration_count % 12 == 0:
             elapsed = time.time() - iteration_start
             log(f"🔄 Iteration {iteration_count}: Checked {checked_count} insiders in {elapsed:.2f}s")
-            log(f"   Still monitoring for new trades... (baseline hashes set for all insiders)\n")
+            log(f"   Still monitoring for new trades... (baseline hashes set for all insiders)")
+            # Cleanup old processed trades to prevent memory bloat (keep last 5000)
+            if len(processed_trades) > 5000:
+                # Keep only the most recent entries by converting to list and keeping last 5000
+                # Since we can't easily determine "most recent", we'll just clear and rebuild
+                # This is safe because old_tx already tracks the latest for each user
+                processed_trades.clear()
+                # Re-add current baselines to prevent reprocessing
+                for u, tx_hash in old_tx.items():
+                    if tx_hash:
+                        processed_trades.add(f"{u}:{tx_hash}")
+                log(f"   🧹 Cleaned up processed_trades set (kept {len(processed_trades)} current baselines)")
+            log("")  # Empty line for readability
         
         # Daily keepalive notification at 16:00 (4 PM)
         now = datetime.now(tz=timezone.utc)
