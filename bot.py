@@ -25,17 +25,15 @@ USERS_FILE = "strikes.py"
 # For now, we'll manage it separately in data.json
 
 def load_data():
-    """Load insider data from JSON file"""
+    """Load insider bio data from Supabase - Supabase only, no local fallback"""
     try:
-        with open(DATA_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except FileNotFoundError:
+        from supabase_storage import load_bio_data_from_supabase
+        return load_bio_data_from_supabase()
+    except Exception as e:
+        print(f"[ERROR] Failed to load data from Supabase: {e}")
         return {"insiders": {}, "next_serial_id": 1}
 
-def save_data(data):
-    """Save insider data to JSON file"""
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
+# Removed save_data - all data is stored in Supabase only
 
 def get_insider_list():
     """Get list of insiders from strikes.py"""
@@ -157,24 +155,19 @@ async def updatebio(
             )
             return
     
-    # Update bio fields
-    bio = data["insiders"][insider]["bio"]
+    # Update bio fields in Supabase
     updated_fields = []
     
     if trading_style is not None:
-        bio["trading_style"] = trading_style
         updated_fields.append(f"**Trading Style**: {trading_style}")
     
     if hit_rate is not None:
-        bio["hit_rate"] = hit_rate
         updated_fields.append(f"**Hit Rate**: {hit_rate}")
     
     if main_markets is not None:
-        bio["main_markets"] = main_markets
         updated_fields.append(f"**Main Markets**: {main_markets}")
     
     if notes is not None:
-        bio["notes"] = notes
         updated_fields.append(f"**Notes**: {notes}")
     
     if not updated_fields:
@@ -184,21 +177,29 @@ async def updatebio(
         )
         return
     
-    # Save to local data.json (for backward compatibility)
-    save_data(data)
-    
-    # Also save to Supabase (primary storage)
+    # Save to Supabase (only storage)
     try:
         from supabase_storage import update_bio_in_supabase
-        update_bio_in_supabase(
+        success = update_bio_in_supabase(
             name=insider,
             trading_style=trading_style,
             hit_rate=hit_rate,
             main_markets=main_markets,
             notes=notes
         )
+        if not success:
+            await interaction.response.send_message(
+                "❌ ERROR: Failed to update bio in Supabase. Check your database connection.",
+                ephemeral=True
+            )
+            return
     except Exception as e:
         print(f"[ERROR] Failed to update bio in Supabase: {e}")
+        await interaction.response.send_message(
+            f"❌ ERROR: Failed to update bio. {str(e)}",
+            ephemeral=True
+        )
+        return
     
     embed = discord.Embed(
         title=f"✅ Bio Updated: {insider}",
@@ -336,15 +337,60 @@ async def adduser(
             )
             return
     
-    data = load_data()
-    
-    # Check if already exists
-    if name in data["insiders"]:
+    # Check if exists in Supabase (ONLY source of truth)
+    try:
+        from supabase_storage import get_supabase_client, TABLE_NAME
+        client = get_supabase_client()
+        if not client:
+            await interaction.response.send_message(
+                "❌ ERROR: Cannot connect to Supabase database. Check your SUPABASE_URL and SUPABASE_KEY.",
+                ephemeral=True
+            )
+            return
+        
+        # Check by name (exact match first, then case-insensitive)
+        existing_by_name = client.table(TABLE_NAME).select("name").eq("name", name).execute()
+        if existing_by_name.data:
+            await interaction.response.send_message(
+                f"❌ Insider '{name}' already exists in database. Use `/updatebio` to modify their bio.",
+                ephemeral=True
+            )
+            return
+        
+        # Check case-insensitive match
+        all_insiders = client.table(TABLE_NAME).select("name").execute()
+        if all_insiders.data:
+            for row in all_insiders.data:
+                existing_name = row.get("name", "")
+                if existing_name and existing_name.lower() == name.lower():
+                    await interaction.response.send_message(
+                        f"❌ Insider '{name}' already exists in database (as '{existing_name}'). Use `/updatebio` to modify their bio.",
+                        ephemeral=True
+                    )
+                    return
+        
+        # Also check by wallet address to catch duplicates with different names
+        existing_by_wallet = client.table(TABLE_NAME).select("name, wallet_address").eq("wallet_address", wallet_address).execute()
+        if existing_by_wallet.data:
+            existing_name = existing_by_wallet.data[0].get("name", "Unknown")
+            await interaction.response.send_message(
+                f"❌ Wallet address `{wallet_address[:10]}...` is already registered to insider '{existing_name}'. "
+                f"Each wallet can only be registered once.",
+                ephemeral=True
+            )
+            return
+    except Exception as e:
+        print(f"[ERROR] Could not check Supabase for existing insider: {e}")
+        import traceback
+        traceback.print_exc()
         await interaction.response.send_message(
-            f"❌ Insider '{name}' already exists. Use `/updatebio` to modify their bio.",
+            f"❌ ERROR: Failed to check database. {str(e)}",
             ephemeral=True
         )
         return
+    
+    # Load bio data from Supabase to get next serial_id
+    data = load_data()  # This now loads from Supabase only
     
     # Add new insider
     serial_id = data["next_serial_id"]

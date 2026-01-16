@@ -1,6 +1,6 @@
 """
 Supabase storage for insider configurations.
-Falls back to local storage if Supabase is not configured.
+ONLY uses Supabase - no local file fallbacks.
 """
 import json
 import os
@@ -12,8 +12,8 @@ try:
     SUPABASE_AVAILABLE = True
 except ImportError:
     SUPABASE_AVAILABLE = False
-    print("⚠️  supabase-py not installed. Install with: pip install supabase")
-    print("   Falling back to local storage (data.json)")
+    print("❌ ERROR: supabase-py not installed. Install with: pip install supabase")
+    print("   Supabase is required - no local fallback available")
 
 # Load .env file if available (do this AFTER checking for supabase)
 try:
@@ -43,8 +43,7 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
 TABLE_NAME = "insiders"  # Table name in Supabase
 
-# Local fallback
-LOCAL_DATA_FILE = "insiders_data.json"
+# No local fallback - Supabase only
 
 def get_supabase_client() -> Optional[Client]:
     """Get Supabase client if configured"""
@@ -75,11 +74,12 @@ def get_supabase_client() -> Optional[Client]:
         return None
 
 def load_insiders_from_supabase() -> Dict:
-    """Load all insiders from Supabase"""
+    """Load all insiders from Supabase - Supabase only, no fallback"""
     client = get_supabase_client()
     if not client:
-        print("⚠️  No Supabase client available - falling back to local storage")
-        return load_insiders_local()
+        print("❌ ERROR: No Supabase client available. Cannot load insiders.")
+        print("   Check your SUPABASE_URL and SUPABASE_KEY environment variables.")
+        return {}
     
     try:
         response = client.table(TABLE_NAME).select("*").execute()
@@ -114,16 +114,18 @@ def load_insiders_from_supabase() -> Dict:
         
         return insiders
     except Exception as e:
-        print(f"⚠️  Error loading from Supabase: {e}")
+        print(f"❌ ERROR loading from Supabase: {e}")
         import traceback
         traceback.print_exc()
-        print("   Falling back to local storage")
-        return load_insiders_local()
+        print("   Supabase connection failed - cannot continue without database.")
+        return {}
 
 def load_bio_data_from_supabase() -> Dict:
-    """Load all bio data from Supabase (for data.json replacement)"""
+    """Load all bio data from Supabase - Supabase only, no fallback"""
     client = get_supabase_client()
     if not client:
+        print("❌ ERROR: No Supabase client available. Cannot load bio data.")
+        print("   Check your SUPABASE_URL and SUPABASE_KEY environment variables.")
         return {"insiders": {}, "next_serial_id": 1}
     
     try:
@@ -148,29 +150,23 @@ def load_bio_data_from_supabase() -> Dict:
         
         return {"insiders": insiders, "next_serial_id": max_serial_id + 1}
     except Exception as e:
-        print(f"⚠️  Error loading bio data from Supabase: {e}")
+        print(f"❌ ERROR loading bio data from Supabase: {e}")
+        import traceback
+        traceback.print_exc()
+        print("   Supabase connection failed - cannot continue without database.")
         return {"insiders": {}, "next_serial_id": 1}
 
-def load_insiders_local() -> Dict:
-    """Load insiders from local JSON file"""
-    try:
-        with open(LOCAL_DATA_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-            return data.get("insiders", {})
-    except FileNotFoundError:
-        return {}
-    except Exception as e:
-        print(f"⚠️  Error loading local data: {e}")
-        return {}
 
 def save_insider_to_supabase(name: str, wallet_address: str, webhook: str, 
                              min_dollar_amount: float = 0.0, tag_everyone: bool = False,
                              min_price: float = 0, max_price: float = 1,
                              serial_id: Optional[int] = None) -> bool:
-    """Save or update insider in Supabase"""
+    """Save or update insider in Supabase - Supabase only, no fallback"""
     client = get_supabase_client()
     if not client:
-        return save_insider_local(name, wallet_address, webhook, min_dollar_amount, tag_everyone, min_price, max_price)
+        print("❌ ERROR: No Supabase client available. Cannot save insider.")
+        print("   Check your SUPABASE_URL and SUPABASE_KEY environment variables.")
+        return False
     
     try:
         # Check if exists
@@ -202,16 +198,20 @@ def save_insider_to_supabase(name: str, wallet_address: str, webhook: str,
         
         return True
     except Exception as e:
-        print(f"⚠️  Error saving to Supabase: {e}")
-        print("   Falling back to local storage")
-        return save_insider_local(name, wallet_address, webhook, min_dollar_amount, tag_everyone, min_price, max_price)
+        print(f"❌ ERROR saving to Supabase: {e}")
+        import traceback
+        traceback.print_exc()
+        print("   Supabase connection failed - cannot save without database.")
+        return False
 
 def update_bio_in_supabase(name: str, trading_style: Optional[str] = None,
                            hit_rate: Optional[str] = None, main_markets: Optional[str] = None,
                            notes: Optional[str] = None) -> bool:
-    """Update bio information in Supabase"""
+    """Update bio information in Supabase - Supabase only, no fallback"""
     client = get_supabase_client()
     if not client:
+        print("❌ ERROR: No Supabase client available. Cannot update bio.")
+        print("   Check your SUPABASE_URL and SUPABASE_KEY environment variables.")
         return False
     
     try:
@@ -230,63 +230,26 @@ def update_bio_in_supabase(name: str, trading_style: Optional[str] = None,
             return True
         return False
     except Exception as e:
-        print(f"⚠️  Error updating bio in Supabase: {e}")
-        return False
-
-def save_insider_local(name: str, wallet_address: str, webhook: str,
-                      min_dollar_amount: float = 0.0, tag_everyone: bool = False,
-                      min_price: float = 0, max_price: float = 1) -> bool:
-    """Save insider to local JSON file"""
-    try:
-        try:
-            with open(LOCAL_DATA_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-        except FileNotFoundError:
-            data = {"insiders": {}}
-        
-        data["insiders"][name] = {
-            "api": f"https://data-api.polymarket.com/activity?user={wallet_address}&limit=10&offset=0",
-            "webhook": webhook,
-            "min_price": min_price,
-            "max_price": max_price,
-            "tag": tag_everyone,
-            "min_dollar_amount": min_dollar_amount
-        }
-        
-        with open(LOCAL_DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        
-        return True
-    except Exception as e:
-        print(f"❌ Error saving locally: {e}")
+        print(f"❌ ERROR updating bio in Supabase: {e}")
+        import traceback
+        traceback.print_exc()
+        print("   Supabase connection failed - cannot update without database.")
         return False
 
 def delete_insider_from_supabase(name: str) -> bool:
-    """Delete insider from Supabase"""
+    """Delete insider from Supabase - Supabase only, no fallback"""
     client = get_supabase_client()
     if not client:
-        return delete_insider_local(name)
+        print("❌ ERROR: No Supabase client available. Cannot delete insider.")
+        print("   Check your SUPABASE_URL and SUPABASE_KEY environment variables.")
+        return False
     
     try:
         client.table(TABLE_NAME).delete().eq("name", name).execute()
         return True
     except Exception as e:
-        print(f"⚠️  Error deleting from Supabase: {e}")
-        return delete_insider_local(name)
-
-def delete_insider_local(name: str) -> bool:
-    """Delete insider from local storage"""
-    try:
-        with open(LOCAL_DATA_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
-        if name in data.get("insiders", {}):
-            del data["insiders"][name]
-        
-        with open(LOCAL_DATA_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        
-        return True
-    except Exception as e:
-        print(f"❌ Error deleting locally: {e}")
+        print(f"❌ ERROR deleting from Supabase: {e}")
+        import traceback
+        traceback.print_exc()
+        print("   Supabase connection failed - cannot delete without database.")
         return False
