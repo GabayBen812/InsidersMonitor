@@ -282,21 +282,45 @@ def extract_trade_epoch_and_local(trade, tz="Asia/Jerusalem"):
     return epoch, local_str
 
 
-def get_latest_trade(activity_list):
-    """Return the most recent TRADE item from activity_list or None."""
+def get_new_trades(activity_list, last_processed_time=None):
+    """
+    Return a list of TRADE items from activity_list that are newer than last_processed_time.
+    If last_processed_time is None, returns the single latest trade (for initialization).
+    """
     if not activity_list or not isinstance(activity_list, list):
-        return None
+        return []
+    
+    # Filter for valid trades
     trades = [t for t in activity_list if t.get("type") == "TRADE" and t.get("transactionHash")]
     if not trades:
-        return None
+        return []
 
-    def trade_epoch(t):
-        try:
-            return extract_trade_epoch_and_local(t)[0]
-        except Exception:
-            return 0
+    # Sort trades by time (oldest first) so we can process them in order
+    trades.sort(key=lambda t: extract_trade_epoch_and_local(t)[0])
 
-    return max(trades, key=trade_epoch)
+    # If no baseline time, just return the latest one (last in sorted list) as a list
+    if last_processed_time is None:
+        return [trades[-1]]
+
+    # Filter for trades newer than or equal to last processed time
+    # We use >= because multiple trades can happen in same second
+    # downstream logic (processed_trades set) handles exact deduplication
+    new_trades = []
+    for t in trades:
+        epoch, _ = extract_trade_epoch_and_local(t)
+        if epoch >= last_processed_time:
+            new_trades.append(t)
+            
+    return new_trades
+
+
+def get_latest_trade(activity_list):
+    """
+    Legacy wrapper for backward compatibility or simple checks.
+    Returns just the latest trade.
+    """
+    trades = get_new_trades(activity_list, last_processed_time=None)
+    return trades[-1] if trades else None
 
 
 
@@ -411,6 +435,7 @@ def main():
     RELOAD_INTERVAL = 60  # Reload users every 60 iterations (5 minutes)
     iteration_count = 0
     last_keepalive_date = None  # Track last date keepalive was sent
+    last_trade_times = {}  # Track timestamp of last processed trade for each user
     
     log(f"🚀 Starting monitor for {len(USERS)} insiders...")
     log(f"📋 Tracking: {', '.join(list(USERS.keys())[:5])}{'...' if len(USERS) > 5 else ''}")
@@ -424,18 +449,24 @@ def main():
     for user, config in USERS.items():
         if user not in old_tx:
             old_tx[user] = None
+            last_trade_times[user] = 0
             try:
                 # Try to get the latest trade to set as baseline
                 data = fetch_data(config['api'])
-                latest = get_latest_trade(data)
-                if latest:
+                # Use None for last_processed_time to strictly get the single latest trade for init
+                latest_list = get_new_trades(data, last_processed_time=None)
+                if latest_list:
+                    latest = latest_list[-1]
                     tx = latest.get('transactionHash')
                     if tx:
                         old_tx[user] = tx
+                        ts_epoch, _ = extract_trade_epoch_and_local(latest)
+                        last_trade_times[user] = ts_epoch
+                        
                         # Mark baseline trade as processed to prevent sending it
                         trade_id = f"{user}:{tx}"
                         processed_trades.add(trade_id)
-                        log(f"📌 Initialized tracking for {user} (baseline tx: {tx[:10]}...)")
+                        log(f"📌 Initialized tracking for {user} (baseline tx: {tx[:10]}... at {ts_epoch})")
                     else:
                         log(f"⚠️  No transactionHash for {user} - will retry in main loop")
                 else:
@@ -466,12 +497,15 @@ def main():
                 for user in new_users:
                     if user not in old_tx:
                         old_tx[user] = None
+                        last_trade_times[user] = 0
                         print(f"✅ New insider detected: {user}")
                 # Remove users that were deleted
                 removed_users = set(USERS.keys()) - set(new_users.keys())
                 for user in removed_users:
                     if user in old_tx:
                         del old_tx[user]
+                        if user in last_trade_times:
+                            del last_trade_times[user]
                         print(f"⚠️  Insider removed: {user}")
                 USERS = new_users
                 reload_counter = 0
@@ -499,63 +533,80 @@ def main():
                         print(f"⚠️  Empty data array for {user}", flush=True)
                     continue
                 
-                latest = get_latest_trade(data)
-                if not latest:
-                    # Silently skip if no trades found
+                # Get all new trades since the last processed time
+                # If last_trade_times[user] is 0 (uninitialized), this will return just the latest trade (handled inside get_new_trades logic via None check? No, I pass 0.)
+                # Wait, if I pass 0, get_new_trades logic `if epoch >= last_processed_time` ensures we get everything > 0.
+                # But if uninitialized, we treated it as "baseline set" in init loop.
+                # If init loop failed, old_tx[user] is None and last_trade_times[user] is 0.
+                # If last_trade_times is 0, we effectively fetch ALL history. That's risky spam.
+                # Let's handle the "uninitialized" case explicitly.
+                
+                curr_last_time = last_trade_times.get(user, 0)
+                
+                if old_tx.get(user) is None:
+                    # Still uninitialized. Treat the LATEST trade as baseline and don't notify.
+                    latest_list = get_new_trades(data, last_processed_time=None) # Returns just latest
+                    if latest_list:
+                        latest = latest_list[-1]
+                        tx = latest.get('transactionHash')
+                        if tx:
+                            old_tx[user] = tx
+                            ts_epoch, _ = extract_trade_epoch_and_local(latest)
+                            last_trade_times[user] = ts_epoch
+                            
+                            # Mark as processed
+                            trade_id = f"{user}:{tx}"
+                            processed_trades.add(trade_id)
+                            print(f"📌 Initialized tracking for {user} (baseline tx: {tx[:10]}...)")
+                    continue
+
+                # Normal monitoring: get all trades newer than last time
+                new_trades_list = get_new_trades(data, last_processed_time=curr_last_time)
+                
+                if not new_trades_list:
+                     # Silently skip if no new trades found
                     if iteration_count % 24 == 0 and checked_count == 0:
-                        print(f"ℹ️  No TRADE activity found for {user}")
+                         pass # print(f"ℹ️  No new activity for {user}")
                     continue
-                
-                tx = latest.get('transactionHash')
-                if not tx:
-                    print(f"⚠️  No transactionHash for {user}")
-                    continue
-                
+
                 checked_count += 1
                 
-                # Create unique identifier for this trade
-                trade_id = f"{user}:{tx}"
-                
-                # Check if we've already processed this trade (prevents duplicates)
-                if trade_id in processed_trades:
-                    # Already processed, skip
-                    continue
-                
-                # Check if this is a new trade
-                if old_tx.get(user) is None:
-                    # First time seeing this user - set the hash as baseline (don't process old trades on startup)
-                    old_tx[user] = tx
-                    # Mark as processed so we don't send it
-                    processed_trades.add(trade_id)
-                    print(f"📌 Initialized tracking for {user} (baseline tx: {tx[:10]}...)")
-                    continue
-                
-                if tx != old_tx[user]:
-                    # Skip old trades to avoid spam on restarts or delayed API updates
-                    ts_epoch, _ = extract_trade_epoch_and_local(latest)
+                for trade in new_trades_list:
+                    tx = trade.get('transactionHash')
+                    if not tx:
+                        continue
+                        
+                    # Create unique identifier
+                    trade_id = f"{user}:{tx}"
+                    
+                    # Deduplication check
+                    if trade_id in processed_trades:
+                        continue
+                        
+                    ts_epoch, _ = extract_trade_epoch_and_local(trade)
                     now_epoch = int(datetime.now(tz=timezone.utc).timestamp())
+                    
+                    # Double check age (safety net)
                     if now_epoch - ts_epoch > MAX_TRADE_AGE_SECONDS:
+                        # Too old, just mark processed and update baseline
                         old_tx[user] = tx
+                        last_trade_times[user] = max(last_trade_times[user], ts_epoch)
                         processed_trades.add(trade_id)
                         print(f"⏭️  Skipping old trade for {user} ({now_epoch - ts_epoch}s old)")
                         continue
-                    print(f"🆕 New trade detected for {user}: {tx[:10]}... (was: {old_tx[user][:10] if old_tx[user] else 'None'}...)")
+                        
+                    print(f"🆕 New trade detected for {user}: {tx[:10]}...")
                     try:
-                        process_trade(user, latest)
+                        process_trade(user, trade)
                         old_tx[user] = tx
-                        # Mark this trade as processed to prevent duplicates
+                        last_trade_times[user] = max(last_trade_times[user], ts_epoch)
                         processed_trades.add(trade_id)
                         print(f"✅ Trade processed and sent for {user}")
                     except Exception as e:
                         print(f"❌ Error processing trade for {user}: {e}")
                         import traceback
                         traceback.print_exc()
-                else:
-                    # Same trade as before, mark as processed if not already
-                    if trade_id not in processed_trades:
-                        processed_trades.add(trade_id)
-                # else: same trade, no action needed (this is normal - waiting for new trades)
-                    
+
             except KeyError as e:
                 print(f"❌ Missing key in data for {user}: {e}")
             except Exception as e:
@@ -567,7 +618,7 @@ def main():
         if iteration_count % 12 == 0:
             elapsed = time.time() - iteration_start
             log(f"🔄 Iteration {iteration_count}: Checked {checked_count} insiders in {elapsed:.2f}s")
-            log(f"   Still monitoring for new trades... (baseline hashes set for all insiders)")
+            log(f"   Still monitoring for new trades...")
             # Cleanup old processed trades to prevent memory bloat (keep last 5000)
             if len(processed_trades) > 5000:
                 # Keep only the most recent entries by converting to list and keeping last 5000
