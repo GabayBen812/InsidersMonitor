@@ -44,8 +44,8 @@ def load_users():
         log("   Supabase connection failed - cannot continue without database.")
         return {}
 
-# Only alert on trades that are recent (prevents old trade spam on restarts)
-MAX_TRADE_AGE_SECONDS = 300  # 5 minutes
+# Alert on trades up to 24 hours old (prevents missing delayed trades, duplicates handled by ID tracking)
+MAX_TRADE_AGE_SECONDS = 800  # 13 minutes
 
 # No hardcoded fallback - Supabase only
 
