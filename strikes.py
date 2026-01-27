@@ -45,7 +45,7 @@ def load_users():
         return {}
 
 # Alert on trades up to 24 hours old (prevents missing delayed trades, duplicates handled by ID tracking)
-MAX_TRADE_AGE_SECONDS = 800  # 13 minutes
+MAX_TRADE_AGE_SECONDS = 2000  # 33 minutes
 
 # No hardcoded fallback - Supabase only
 
